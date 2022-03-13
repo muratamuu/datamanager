@@ -1,4 +1,4 @@
-use datamanager::message;
+//use datamanager::message;
 fn main() {
     // let _req = message::Request {
     //     command: "SetDataRequest".to_string(),

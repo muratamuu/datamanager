@@ -1,17 +1,30 @@
 use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Request {
-    pub command: String,
+#[serde(tag = "command")]
+pub enum Message {
+    GetDataRequest(GetDataRequest),
+    SetDataRequest(SetDataRequest),
+}
+
+type Label = String;
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct GetDataRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag: Option<String>,
-    pub data: Vec<Data>,
+    pub params: Vec<Label>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Data {
+pub struct SetDataRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    pub params: Vec<LabeledValue>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct LabeledValue {
     pub label: String,
     pub value: Value,
 }
@@ -21,7 +34,7 @@ pub struct Data {
 pub enum Value {
     Int(i64),
     Float(f64),
-    Text(String),
+    String(String),
 }
 
 #[cfg(test)]
@@ -29,42 +42,110 @@ mod tests {
     use crate::message::*;
 
     #[test]
-    fn test_serialize_basic_request() {
-
-        let req = Request {
-            command: "SetDataRequest".to_string(),
+    fn test_serialize_set_request() {
+        let message = Message::SetDataRequest(SetDataRequest {
             tag: Some("ABC".to_string()),
-            data: vec![Data {
+            params: vec![LabeledValue {
                 label: "SP1".to_string(),
                 value: Value::Float(3.0),
             }],
-        };
+        });
 
-        let serialized_req = serde_json::to_string(&req).unwrap();
-        assert_eq!(serialized_req,
-            r#"{"command":"SetDataRequest","tag":"ABC","data":[{"label":"SP1","value":3.0}]}"#);
+        let json = serde_json::to_string(&message).unwrap();
 
-        let deserialized_req: Request = serde_json::from_str(&serialized_req).unwrap();
-        assert_eq!(deserialized_req, req);
+        assert_eq!(json,
+            r#"{"command":"SetDataRequest","tag":"ABC","params":[{"label":"SP1","value":3.0}]}"#);
     }
 
     #[test]
-    fn test_serialize_non_tagged_request() {
+    fn test_deserialize_set_request() {
+        let json = r#"
+            {
+                "command": "SetDataRequest",
+                "tag": "123",
+                "params": [
+                    {"label": "SP1", "value": 3.14}
+                ]
+            }
+        "#;
 
-        let req = Request {
-            command: "SetDataRequest".to_string(),
+        if let Message::SetDataRequest(message) = serde_json::from_str(json).unwrap() {
+            assert_eq!(message.tag, Some("123".to_string()));
+            assert_eq!(message.params[0].label, "SP1");
+            assert_eq!(message.params[0].value, Value::Float(3.14));
+        } else {
+            panic!("not SetDataRequest");
+        }
+    }
+
+    #[test]
+    fn test_serialize_no_tagged_request() {
+        let message = Message::SetDataRequest(SetDataRequest {
             tag: None,
-            data: vec![Data {
+            params: vec![LabeledValue {
                 label: "SP1".to_string(),
                 value: Value::Float(3.0),
             }],
+        });
+
+        let json = serde_json::to_string(&message).unwrap();
+        assert_eq!(json,
+            r#"{"command":"SetDataRequest","params":[{"label":"SP1","value":3.0}]}"#);
+    }
+
+    #[test]
+    fn test_deserialize_no_tagged_request() {
+        let json = r#"
+            {
+                "command": "SetDataRequest",
+                "params": [
+                    {"label": "userName", "value": "murata"}
+                ]
+            }
+        "#;
+
+        if let Message::SetDataRequest(message) = serde_json::from_str(json).unwrap() {
+            assert_eq!(message.tag, None);
+            assert_eq!(message.params[0].label, "userName");
+            assert_eq!(message.params[0].value, Value::String("murata".to_string()));
+        } else {
+            panic!("not SetDataRequest");
+        }
+    }
+
+    #[test]
+    fn test_serialize_get_request() {
+        let message = Message::GetDataRequest(GetDataRequest {
+            tag: Some("ABC".to_string()),
+            params: vec![
+                "SP1".to_string(),
+                "NE1".to_string(),
+            ],
+        });
+
+        let json = serde_json::to_string(&message).unwrap();
+
+        assert_eq!(json,
+            r#"{"command":"GetDataRequest","tag":"ABC","params":["SP1","NE1"]}"#);
+    }
+
+    #[test]
+    fn test_deserialize_get_request() {
+        let json = r#"
+            {
+                "command": "GetDataRequest",
+                "tag": "123",
+                "params": ["SP1", "NE1"]
+            }
+        "#;
+
+        match serde_json::from_str(json).unwrap() {
+            Message::GetDataRequest(message) => {
+                assert_eq!(message.tag, Some("123".to_string()));
+                assert_eq!(message.params[0], "SP1");
+                assert_eq!(message.params[1], "NE1");
+            }
+            _ => panic!("not GetDataRequest"),
         };
-
-        let serialized_req = serde_json::to_string(&req).unwrap();
-        assert_eq!(serialized_req,
-            r#"{"command":"SetDataRequest","data":[{"label":"SP1","value":3.0}]}"#);
-
-        let deserialized_req: Request = serde_json::from_str(&serialized_req).unwrap();
-        assert_eq!(deserialized_req, req);
     }
 }
