@@ -7,7 +7,7 @@ pub enum Message {
     SetDataRequest(SetDataRequest),
 }
 
-type Label = String;
+pub type Label = String;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct GetDataRequest {
