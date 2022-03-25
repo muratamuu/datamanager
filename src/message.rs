@@ -1,7 +1,12 @@
 use serde::{Serialize, Deserialize};
 
-// "OK" or Error Status
-pub const STATUS_OK: &str = "OK";
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub enum Status {
+    OK,
+    InvalidRequest,
+    // coding idea memo #[serde(rename = "NOT_FOUND")]
+    NotFound,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(tag = "command")]
@@ -25,7 +30,7 @@ pub struct GetDataRequest {
 pub struct GetDataResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag: Option<String>,
-    pub status: String,
+    pub status: Status,
     pub results: Vec<LabeledValue>,
 }
 
@@ -40,7 +45,7 @@ pub struct SetDataRequest {
 pub struct SetDataResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag: Option<String>,
-    pub status: String,
+    pub status: Status,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -173,7 +178,7 @@ mod tests {
     fn test_serialize_get_response() {
         let message = Message::GetDataResponse(GetDataResponse {
             tag: None,
-            status: STATUS_OK.to_string(),
+            status: Status::OK,
             results: vec![LabeledValue {
                 label: "SP1".to_string(),
                 value: Value::Float(3.0),
@@ -201,9 +206,29 @@ mod tests {
 
         if let Message::GetDataResponse(message) = serde_json::from_str(json).unwrap() {
             assert_eq!(message.tag, Some("123".to_string()));
-            assert_eq!(message.status, STATUS_OK);
+            assert_eq!(message.status, Status::OK);
             assert_eq!(message.results[0].label, "SP1");
             assert_eq!(message.results[0].value, Value::Float(3.14));
+        } else {
+            panic!("not GetDataResponse");
+        }
+    }
+
+    #[test]
+    fn test_deserialize_get_response_error() {
+        let json = r#"
+            {
+                "command": "GetDataResponse",
+                "status": "NotFound",
+                "tag": "123",
+                "results": []
+            }
+        "#;
+
+        if let Message::GetDataResponse(message) = serde_json::from_str(json).unwrap() {
+            assert_eq!(message.tag, Some("123".to_string()));
+            assert_eq!(message.status, Status::NotFound);
+            assert_eq!(message.results.len(), 0);
         } else {
             panic!("not GetDataResponse");
         }
@@ -213,7 +238,7 @@ mod tests {
     fn test_serialize_set_response() {
         let message = Message::SetDataResponse(SetDataResponse {
             tag: None,
-            status: STATUS_OK.to_string(),
+            status: Status::OK,
         });
 
         let json = serde_json::to_string(&message).unwrap();
@@ -234,7 +259,7 @@ mod tests {
 
         if let Message::SetDataResponse(message) = serde_json::from_str(json).unwrap() {
             assert_eq!(message.tag, Some("123".to_string()));
-            assert_eq!(message.status, STATUS_OK);
+            assert_eq!(message.status, Status::OK);
         } else {
             panic!("not SetDataResponse");
         }
