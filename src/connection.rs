@@ -21,6 +21,7 @@ pub async fn serve(socket: TcpStream, store: &mut HashMap<Label, Value>) -> AppR
                     store.insert(label, value);
                 }
             }
+            _ => (),
         }
     }
 

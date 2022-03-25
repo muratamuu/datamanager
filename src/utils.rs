@@ -70,6 +70,7 @@ mod test {
                 match reply? {
                     m @ Message::GetDataRequest(..) => messages.push(m),
                     m @ Message::SetDataRequest(..) => messages.push(m),
+                    _ => (),
                 }
             };
 

@@ -1,10 +1,15 @@
 use serde::{Serialize, Deserialize};
 
+// "OK" or Error Status
+pub const STATUS_OK: &str = "OK";
+
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(tag = "command")]
 pub enum Message {
     GetDataRequest(GetDataRequest),
+    GetDataResponse(GetDataResponse),
     SetDataRequest(SetDataRequest),
+    SetDataResponse(SetDataResponse),
 }
 
 pub type Label = String;
@@ -17,10 +22,25 @@ pub struct GetDataRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct GetDataResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    pub status: String,
+    pub results: Vec<LabeledValue>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct SetDataRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag: Option<String>,
     pub params: Vec<LabeledValue>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct SetDataResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    pub status: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -147,5 +167,76 @@ mod tests {
             }
             _ => panic!("not GetDataRequest"),
         };
+    }
+
+    #[test]
+    fn test_serialize_get_response() {
+        let message = Message::GetDataResponse(GetDataResponse {
+            tag: None,
+            status: STATUS_OK.to_string(),
+            results: vec![LabeledValue {
+                label: "SP1".to_string(),
+                value: Value::Float(3.0),
+            }],
+        });
+
+        let json = serde_json::to_string(&message).unwrap();
+
+        assert_eq!(json,
+            r#"{"command":"GetDataResponse","status":"OK","results":[{"label":"SP1","value":3.0}]}"#);
+    }
+
+    #[test]
+    fn test_deserialize_get_response() {
+        let json = r#"
+            {
+                "command": "GetDataResponse",
+                "status": "OK",
+                "tag": "123",
+                "results": [
+                    {"label": "SP1", "value": 3.14}
+                ]
+            }
+        "#;
+
+        if let Message::GetDataResponse(message) = serde_json::from_str(json).unwrap() {
+            assert_eq!(message.tag, Some("123".to_string()));
+            assert_eq!(message.status, STATUS_OK);
+            assert_eq!(message.results[0].label, "SP1");
+            assert_eq!(message.results[0].value, Value::Float(3.14));
+        } else {
+            panic!("not GetDataResponse");
+        }
+    }
+
+    #[test]
+    fn test_serialize_set_response() {
+        let message = Message::SetDataResponse(SetDataResponse {
+            tag: None,
+            status: STATUS_OK.to_string(),
+        });
+
+        let json = serde_json::to_string(&message).unwrap();
+
+        assert_eq!(json,
+            r#"{"command":"SetDataResponse","status":"OK"}"#);
+    }
+
+    #[test]
+    fn test_deserialize_set_response() {
+        let json = r#"
+            {
+                "command": "SetDataResponse",
+                "status": "OK",
+                "tag": "123"
+            }
+        "#;
+
+        if let Message::SetDataResponse(message) = serde_json::from_str(json).unwrap() {
+            assert_eq!(message.tag, Some("123".to_string()));
+            assert_eq!(message.status, STATUS_OK);
+        } else {
+            panic!("not SetDataResponse");
+        }
     }
 }
