@@ -60,6 +60,7 @@ pub enum Value {
     Int(i64),
     Float(f64),
     String(String),
+    Null,
 }
 
 #[cfg(test)]
@@ -116,6 +117,40 @@ mod tests {
         let json = serde_json::to_string(&message).unwrap();
         assert_eq!(json,
             r#"{"command":"SetDataRequest","params":[{"label":"SP1","value":3.0}]}"#);
+    }
+
+    #[test]
+    fn test_serialize_null_value_request() {
+        let message = Message::SetDataRequest(SetDataRequest {
+            tag: None,
+            params: vec![LabeledValue {
+                label: "SP1".to_string(),
+                value: Value::Null,
+            }],
+        });
+
+        let json = serde_json::to_string(&message).unwrap();
+        assert_eq!(json,
+            r#"{"command":"SetDataRequest","params":[{"label":"SP1","value":null}]}"#);
+    }
+
+    #[test]
+    fn test_deserialize_null_value_request() {
+        let json = r#"
+            {
+                "command": "SetDataRequest",
+                "params": [
+                    {"label": "SP1", "value": null}
+                ]
+            }
+        "#;
+
+        if let Message::SetDataRequest(message) = serde_json::from_str(json).unwrap() {
+            assert_eq!(message.params[0].label, "SP1");
+            assert_eq!(message.params[0].value, Value::Null);
+        } else {
+            panic!("not SetDataRequest");
+        }
     }
 
     #[test]

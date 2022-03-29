@@ -20,6 +20,7 @@ pub async fn serve(socket: TcpStream, store: &mut HashMap<Label, Value>) -> AppR
                         Value::String(ref s) => Value::String(s.to_owned()),
                         Value::Int(i) => Value::Int(*i),
                         Value::Float(f) => Value::Float(*f),
+                        Value::Null => Value::Null,
                     };
                     results.push(LabeledValue{ label, value });
                 }
