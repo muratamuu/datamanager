@@ -54,7 +54,7 @@ pub struct LabeledValue {
     pub value: Value,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum Value {
     Int(i64),
