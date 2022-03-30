@@ -1,3 +1,4 @@
+use crate::common::{Label, Value};
 use crate::utils::{self, AppResult};
 use crate::message::*;
 use async_std::prelude::*;
@@ -46,6 +47,7 @@ pub async fn serve(socket: TcpStream, store: &mut HashMap<Label, Value>) -> AppR
 
 #[cfg(test)]
 mod test {
+    use crate::common::Value;
     use crate::utils::{self, AppResult};
     use crate::message::*;
     use std::collections::HashMap;

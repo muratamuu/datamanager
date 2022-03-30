@@ -35,6 +35,7 @@ pub fn type_of<T>(_: T) -> &'static str {
 
 #[cfg(test)]
 mod test {
+    use crate::common::Value;
     use crate::utils::AppResult;
     use crate::message::*;
     use async_std::prelude::*;

@@ -1,3 +1,4 @@
+use crate::common::{Label, Value};
 use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -16,8 +17,6 @@ pub enum Message {
     SetDataRequest(SetDataRequest),
     SetDataResponse(SetDataResponse),
 }
-
-pub type Label = String;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct GetDataRequest {
@@ -50,17 +49,8 @@ pub struct SetDataResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct LabeledValue {
-    pub label: String,
+    pub label: Label,
     pub value: Value,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-#[serde(untagged)]
-pub enum Value {
-    Int(i64),
-    Float(f64),
-    String(String),
-    Null,
 }
 
 #[cfg(test)]
