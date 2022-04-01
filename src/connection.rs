@@ -5,6 +5,77 @@ use async_std::prelude::*;
 use async_std::net::TcpStream;
 use async_std::io::BufReader;
 use std::collections::HashMap;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+#[derive(Debug, Clone)]
+pub struct Outbound<S>(Rc<RefCell<S>>);
+
+impl<S> Outbound<S>
+where
+    S: async_std::io::Write + std::marker::Unpin,
+{
+    pub fn new(to_client: S) -> Self {
+        Self(Rc::new(RefCell::new(to_client)))
+    }
+
+    pub async fn send(&self, message: &Message) -> AppResult<()> {
+        let mut outbound = self.0.borrow_mut();
+        utils::send_as_json(&mut *outbound, message).await?;
+        outbound.flush().await?;
+        Ok(())
+    }
+}
+
+pub fn serve_iter<T>(async_io: T) -> impl Stream<Item = AppResult<(Message, Outbound<T>)>>
+where
+    T: async_std::io::Write + async_std::io::Read + std::marker::Unpin + std::clone::Clone,
+{
+    let outbound = Outbound::new(async_io.clone());
+    utils::receive_as_json(BufReader::new(async_io))
+        .map(move |message_result| {
+            let message: Message = message_result?;
+            Ok((message, outbound.clone()))
+        })
+}
+
+pub async fn serve2(socket: TcpStream, store: &mut HashMap<Label, Value>) -> AppResult<()> {
+
+    let mut from_client = serve_iter(socket);
+    while let Some(message_result) = from_client.next().await {
+        let (message, outbound) = message_result.unwrap();
+        match message {
+            Message::GetDataRequest(r) => {
+                let status =
+                    if r.params.iter().all(|label| store.contains_key(label)) { Status::OK }
+                    else { Status::NotFound };
+                let results = r.params.into_iter().map(|label| LabeledValue {
+                    value: store.get(&label).unwrap_or(&Value::Null).clone(),
+                    label,
+                }).collect();
+                let response = Message::GetDataResponse(GetDataResponse {
+                    tag: r.tag,
+                    status,
+                    results,
+                });
+                outbound.send(&response).await?;
+            }
+            Message::SetDataRequest(r) => {
+                for LabeledValue { label, value } in r.params {
+                    store.insert(label, value);
+                }
+                let response = Message::SetDataResponse(SetDataResponse {
+                    tag: r.tag,
+                    status: Status::OK,
+                });
+                outbound.send(&response).await?;
+            }
+            _ => (),
+        }
+    }
+
+    Ok(())
+}
 
 pub async fn serve(socket: TcpStream, store: &mut HashMap<Label, Value>) -> AppResult<()> {
 
@@ -68,7 +139,7 @@ mod test {
                 let mut new_connections = listener.incoming();
                 while let Some(socket_result) = new_connections.next().await {
                     let socket = socket_result?;
-                    super::serve(socket, &mut store).await?;
+                    super::serve2(socket, &mut store).await?;
                 }
                 Ok(()) as AppResult<()>
             };
