@@ -28,7 +28,7 @@ pub struct GetDataRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct GetDataResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tag: Option<String>,
+    pub tag: Option<String>, // TODO set default value
     pub status: Status,
     pub results: Vec<LabeledValue>,
 }

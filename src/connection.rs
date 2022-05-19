@@ -2,9 +2,48 @@ use crate::common::{Label, Value};
 use crate::utils::AppResult;
 use crate::message::*;
 use async_std::prelude::*;
-use async_std::net::TcpStream;
+use async_std::net::{TcpStream, TcpListener};
 use std::collections::HashMap;
 use crate::message_receiver::*;
+
+use std::pin::Pin;
+use async_std::task::{Context, Poll};
+
+struct ConnectionStream {
+
+}
+
+impl Stream for ConnectionStream {
+    type Item = AppResult<Message>;
+
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let message = Message::SetDataRequest(SetDataRequest {
+            tag: None,
+            params: vec![
+                LabeledValue { label: "SP1".to_string(), value: Value::Float(3.0) },
+            ],
+        });
+        Poll::Ready(Some(Ok(message)))
+    }
+}
+
+pub async fn connection<A>(addrs: A) -> AppResult<()>
+where
+    A: async_std::net::ToSocketAddrs,
+{
+    let listener = TcpListener::bind(addrs).await?;
+    let mut new_connections = listener.incoming();
+    while let Some(socket_result) = new_connections.next().await {
+        let socket = socket_result?;
+        let mut from_client = receive_message(socket);
+        while let Some(message_result) = from_client.next().await {
+            let (message, _outbound) = message_result?;
+            let _m: Message = message;
+            println!("{:?}", _m);
+        }
+    }
+    Ok(())
+}
 
 pub async fn serve(socket: TcpStream, store: &mut HashMap<Label, Value>) -> AppResult<()> {
 
@@ -209,5 +248,69 @@ mod test {
             let result = server_fut.race(client_fut).await;
             assert!(matches!(result, Ok(..)));
         });
+    }
+
+    #[test]
+    fn test_connection() {
+        task::block_on(async {
+            let server_fut = super::connection("localhost:8890");
+
+            let client_fut = async {
+                let mut socket = net::TcpStream::connect("localhost:8890").await?;
+                let message = Message::SetDataRequest(SetDataRequest {
+                    tag: None,
+                    params: vec![
+                        LabeledValue { label: "SP1".to_string(), value: Value::Float(3.0) },
+                    ],
+                });
+                utils::send_as_json(&mut socket, &message).await?;
+                task::yield_now().await;
+                Ok(()) as AppResult<()>
+            };
+
+            let result = server_fut.race(client_fut).await;
+
+            assert!(matches!(result, Ok(..)));
+        });
+    }
+
+    use async_std::task::{Poll, Context};
+    use async_std::pin::Pin;
+
+    struct SampleStream {
+        max: i32,
+        now: i32,
+    }
+    impl SampleStream {
+        fn new(now: i32, max: i32) -> Self {
+            Self { max, now }
+        }
+    }
+
+    impl Stream for SampleStream {
+        type Item = i32;
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            if self.now == self.max {
+                Poll::Ready(None)
+            } else {
+                self.now += 1;
+                Poll::Ready(Some(self.now))
+            }
+        }
+    }
+
+    #[test]
+    fn test_stream() {
+        task::block_on(async {
+            let a = SampleStream::new(0, 10);
+            let b = SampleStream::new(10, 20);
+            let c = SampleStream::new(20, 30);
+            let mut d = a.merge(b).merge(c);
+            while let Some(n) = d.next().await {
+                println!("{}", n);
+            }
+            println!("end");
+        });
+        println!("test end");
     }
 }
